@@ -33,9 +33,17 @@
  * channels used to for RTMP packets with different purposes (i.e. data, network
  * control, remote procedure calls, etc.)
  */
-enum RTMPChannel {
-    RTMP_NETWORK_CHANNEL = 2,   ///< channel for network-related messages (bandwidth report, ping, etc)
-    RTMP_SYSTEM_CHANNEL,        ///< channel for sending server control messages
+ //在 RTMP 协议中，一个连接可以包含多个通道（channel），每个通道都是一个独立的双向数据传输通道，用于在连接上传输不同类型的数据。每个通道都有一个唯一的 ID，用于标识该通道。
+ //通常情况下，一个 RTMP 连接至少包含两个通道，一个用于传输控制消息，另一个用于传输音视频数据。除此之外，RTMP 协议还定义了其他几种类型的通道，例如元数据通道、共享对象通道等
+
+ //每个通道都有一个接收队列和一个发送队列，用于存储接收到和发送的数据包。在发送数据包时，需要指定数据包所属的通道 ID，以便接收方正确识别数据包。
+ //同时，每个通道还有一个计数器，用于记录该通道接收和发送的字节数。
+
+ //通过使用多个通道，RTMP 协议可以同时传输多种类型的数据，并且可以对每种类型的数据进行独立的控制和管理。
+ //这样可以提高数据传输的效率和稳定性，使得 RTMP 协议在音视频流媒体传输领域得到了广泛应用。
+ enum RTMPChannel {
+    RTMP_NETWORK_CHANNEL = 2,   ///表示通道的唯一 ID，通常由 RTMP 对象自动分配 < channel for network-related messages (bandwidth report, ping, etc)
+    RTMP_SYSTEM_CHANNEL,        ///表示该通道接收到的数据包队列< channel for sending server control messages
     RTMP_AUDIO_CHANNEL,         ///< channel for audio data
     RTMP_VIDEO_CHANNEL   = 6,   ///< channel for video data
     RTMP_SOURCE_CHANNEL  = 8,   ///< channel for a/v invokes
@@ -44,21 +52,22 @@ enum RTMPChannel {
 /**
  * known RTMP packet types
  */
+ //rtmp数据包类型
 typedef enum RTMPPacketType {
-    RTMP_PT_CHUNK_SIZE   =  1,  ///< chunk size change
-    RTMP_PT_BYTES_READ   =  3,  ///< number of bytes read
-    RTMP_PT_USER_CONTROL,       ///< user control
-    RTMP_PT_WINDOW_ACK_SIZE,    ///< window acknowledgement size
-    RTMP_PT_SET_PEER_BW,        ///< peer bandwidth
-    RTMP_PT_AUDIO        =  8,  ///< audio packet
-    RTMP_PT_VIDEO,              ///< video packet
-    RTMP_PT_FLEX_STREAM  = 15,  ///< Flex shared stream
-    RTMP_PT_FLEX_OBJECT,        ///< Flex shared object
-    RTMP_PT_FLEX_MESSAGE,       ///< Flex shared message
-    RTMP_PT_NOTIFY,             ///< some notification
-    RTMP_PT_SHARED_OBJ,         ///< shared object
-    RTMP_PT_INVOKE,             ///< invoke some stream action
-    RTMP_PT_METADATA     = 22,  ///< FLV metadata
+    RTMP_PT_CHUNK_SIZE   =  1,  ///数据包的分块大小 < chunk size change
+    RTMP_PT_BYTES_READ   =  3,  ///表示已经读取的字节数。< number of bytes read
+    RTMP_PT_USER_CONTROL,       ///用户控制消息< user control
+    RTMP_PT_WINDOW_ACK_SIZE,    ///表示窗口确认大小< window acknowledgement size
+    RTMP_PT_SET_PEER_BW,        ///表示设置对端带宽< peer bandwidth
+    RTMP_PT_AUDIO        =  8,  ///音频数据包< audio packet
+    RTMP_PT_VIDEO,              ///视频数据包< video packet
+    RTMP_PT_FLEX_STREAM  = 15,  ///Flex共享流< Flex shared stream
+    RTMP_PT_FLEX_OBJECT,        ///Flex共享对象< Flex shared object
+    RTMP_PT_FLEX_MESSAGE,       ///Flex共享消息< Flex shared message
+    RTMP_PT_NOTIFY,             ///某些通知信息< some notification
+    RTMP_PT_SHARED_OBJ,         ///表示共享对象< shared object
+    RTMP_PT_INVOKE,             ///表示调用某些流操作< invoke some stream action
+    RTMP_PT_METADATA     = 22,  ///即表示 FLV 元数据。< FLV metadata
 } RTMPPacketType;
 
 /**
@@ -75,15 +84,15 @@ enum RTMPPacketSize {
  * structure for holding RTMP packets
  */
 typedef struct RTMPPacket {
-    int            channel_id; ///< RTMP channel ID (nothing to do with audio/video channels though)
-    RTMPPacketType type;       ///< packet payload type
-    uint32_t       timestamp;  ///< packet full timestamp
-    uint32_t       ts_field;   ///< 24-bit timestamp or increment to the previous one, in milliseconds (latter only for media packets). Clipped to a maximum of 0xFFFFFF, indicating an extended timestamp field.
-    uint32_t       extra;      ///< probably an additional channel ID used during streaming data
-    uint8_t        *data;      ///< packet payload
-    int            size;       ///< packet payload size
-    int            offset;     ///< amount of data read so far
-    int            read;       ///< amount read, including headers
+    int            channel_id; ///表示 RTMP 通道 ID，用于标识数据包所属的通道。< RTMP channel ID (nothing to do with audio/video channels though)
+    RTMPPacketType type;       ///表示数据包的类型。RTMP 协议中定义了多种数据包类型，例如音视频数据包、元数据包、控制消息等< packet payload type
+    uint32_t       timestamp;  ///表示数据包的时间戳，单位为毫秒。对于音视频数据包，时间戳表示该数据包的绝对时间戳< packet full timestamp
+    uint32_t       ts_field;   ///表示时间戳或时间戳增量，单位为毫秒。< 24-bit timestamp or increment to the previous one, in milliseconds (latter only for media packets). Clipped to a maximum of 0xFFFFFF, indicating an extended timestamp field.
+    uint32_t       extra;      ///表示附加信息，通常用于传输流数据时使用的额外通道 ID。< probably an additional channel ID used during streaming data
+    uint8_t        *data;      ///表示数据包的有效载荷，即数据包的实际内容< packet payload
+    int            size;       ///表示数据包的有效载荷大小< packet payload size
+    int            offset;     ///表示已经读取的数据包有效载荷的字节数。< amount of data read so far
+    int            read;       ///表示已经读取的数据包的总字节数，包括头部和有效载荷。< amount read, including headers
 } RTMPPacket;
 
 /**

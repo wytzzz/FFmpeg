@@ -156,6 +156,7 @@ int ff_rtmp_check_alloc_array(RTMPPacket **prev_pkt, int *nb_prev_pkt,
     return 0;
 }
 
+//读取
 int ff_rtmp_packet_read(URLContext *h, RTMPPacket *p,
                         int chunk_size, RTMPPacket **prev_pkt, int *nb_prev_pkt)
 {
@@ -185,6 +186,7 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
     written++;
     channel_id = hdr & 0x3F;
 
+    //hdr为base header
     if (channel_id < 2) { //special case for channel number >= 64
         buf[1] = 0;
         if (ffurl_read_complete(h, buf, channel_id + 1) != channel_id + 1)
@@ -200,10 +202,13 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
     type  = prev_pkt[channel_id].type;
     extra = prev_pkt[channel_id].extra;
 
+    //header_size.
     hdr >>= 6; // header size indicator
+
     if (hdr == RTMP_PS_ONEBYTE) {
         ts_field = prev_pkt[channel_id].ts_field;
     } else {
+        //3字节时间戳
         if (ffurl_read_complete(h, buf, 3) != 3)
             return AVERROR(EIO);
         written += 3;
@@ -212,6 +217,7 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
             if (ffurl_read_complete(h, buf, 3) != 3)
                 return AVERROR(EIO);
             written += 3;
+            //3字节message长度
             size = AV_RB24(buf);
             if (ffurl_read_complete(h, buf, 1) != 1)
                 return AVERROR(EIO);
@@ -221,10 +227,12 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
                 if (ffurl_read_complete(h, buf, 4) != 4)
                     return AVERROR(EIO);
                 written += 4;
+                //额外字段
                 extra = AV_RL32(buf);
             }
         }
     }
+    //读取ts
     if (ts_field == 0xFFFFFF) {
         if (ffurl_read_complete(h, buf, 4) != 4)
             return AVERROR(EIO);
@@ -235,6 +243,8 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
     if (hdr != RTMP_PS_TWELVEBYTES)
         timestamp += prev_pkt[channel_id].timestamp;
 
+    //函数检查当前数据包的大小是否与同一通道ID的上一个数据包的大小匹配
+    //一个message已经读完
     if (prev_pkt[channel_id].read && size != prev_pkt[channel_id].size) {
         av_log(h, AV_LOG_ERROR, "RTMP packet size mismatch %d != %d\n",
                                 size, prev_pkt[channel_id].size);
@@ -242,7 +252,7 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
         prev_pkt[channel_id].read = 0;
         return AVERROR_INVALIDDATA;
     }
-
+    //一个新的message
     if (!prev_pkt[channel_id].read) {
         if ((ret = ff_rtmp_packet_create(p, channel_id, type, timestamp,
                                          size)) < 0)
@@ -251,7 +261,9 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
         p->offset = 0;
         prev_pkt[channel_id].ts_field   = ts_field;
         prev_pkt[channel_id].timestamp  = timestamp;
+    //上一个message的某一个chunk
     } else {
+        // 如果当前数据包尚未完全读取，则函数为当前通道ID创建上一个数据包的副本
         // previous packet in this channel hasn't completed reading
         RTMPPacket *prev = &prev_pkt[channel_id];
         p->data          = prev->data;
@@ -272,7 +284,7 @@ static int rtmp_packet_read_one_chunk(URLContext *h, RTMPPacket *p,
     prev_pkt[channel_id].size       = size;
     prev_pkt[channel_id].extra      = extra;
     size = size - p->offset;
-
+    //读取一个chunk
     toread = FFMIN(size, chunk_size);
     if (ffurl_read_complete(h, p->data + p->offset, toread) != toread) {
         ff_rtmp_packet_destroy(p);
@@ -304,7 +316,7 @@ int ff_rtmp_packet_read_internal(URLContext *h, RTMPPacket *p, int chunk_size,
                                              nb_prev_pkt, hdr);
         if (ret > 0 || ret != AVERROR(EAGAIN))
             return ret;
-
+        //读取basic header
         if (ffurl_read(h, &hdr, 1) != 1)
             return AVERROR(EIO);
     }
@@ -314,6 +326,7 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
                          int chunk_size, RTMPPacket **prev_pkt_ptr,
                          int *nb_prev_pkt)
 {
+
     uint8_t pkt_hdr[16], *p = pkt_hdr;
     int mode = RTMP_PS_TWELVEBYTES;
     int off = 0;
@@ -329,10 +342,12 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
     prev_pkt = *prev_pkt_ptr;
 
     //if channel_id = 0, this is first presentation of prev_pkt, send full hdr.
+    //判断是否发送绝对时间
     use_delta = prev_pkt[pkt->channel_id].channel_id &&
         pkt->extra == prev_pkt[pkt->channel_id].extra &&
         pkt->timestamp >= prev_pkt[pkt->channel_id].timestamp;
 
+    //时间戳计算
     timestamp = pkt->timestamp;
     if (use_delta) {
         timestamp -= prev_pkt[pkt->channel_id].timestamp;
@@ -342,7 +357,7 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
     } else {
         pkt->ts_field = timestamp;
     }
-
+    //判断header的类型
     if (use_delta) {
         if (pkt->type == prev_pkt[pkt->channel_id].type &&
             pkt->size == prev_pkt[pkt->channel_id].size) {
@@ -354,6 +369,9 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
         }
     }
 
+    //接下来，根据通道 ID 的值来选择不同的编码方式。如果通道 ID 小于 64，则使用一个字节来编码，其中高两位表示使用的头部编码方式，低六位表示通道 ID。
+    // 如果通道 ID 大于等于 64 并且小于 64+256，则使用两个字节来编码，第一个字节的高两位表示使用的头部编码方式，低六位为 0，第二个字节表示通道 ID 减去 64。
+    // 如果通道 ID 大于等于 64+256，则使用三个字节来编码，第一个字节的高两位表示使用的头部编码方式，低六位为 1，后面两个字节使用小端字节序编码通道 ID 减去 64。
     if (pkt->channel_id < 64) {
         bytestream_put_byte(&p, pkt->channel_id | (mode << 6));
     } else if (pkt->channel_id < 64 + 256) {
@@ -363,6 +381,7 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
         bytestream_put_byte(&p, 1               | (mode << 6));
         bytestream_put_le16(&p, pkt->channel_id - 64);
     }
+
     if (mode != RTMP_PS_ONEBYTE) {
         bytestream_put_be24(&p, pkt->ts_field);
         if (mode != RTMP_PS_FOURBYTES) {
@@ -382,19 +401,27 @@ int ff_rtmp_packet_write(URLContext *h, RTMPPacket *pkt,
     prev_pkt[pkt->channel_id].ts_field   = pkt->ts_field;
     prev_pkt[pkt->channel_id].extra      = pkt->extra;
 
+    //首先，使用 ffurl_write 函数将数据包的头部信息 pkt_hdr 写入到网络连接中。
+    // pkt_hdr 包含了数据包的通道 ID、时间戳等信息，以及数据包头部的编码方式。p - pkt_hdr 是头部信息的长度，即编码后的字节数。
     if ((ret = ffurl_write(h, pkt_hdr, p - pkt_hdr)) < 0)
         return ret;
+    //写入数据
     written = p - pkt_hdr + pkt->size;
+    // off < pkt->size，即还有剩余的数据没有写入
     while (off < pkt->size) {
+        //分chunk送入网络
         int towrite = FFMIN(chunk_size, pkt->size - off);
         if ((ret = ffurl_write(h, pkt->data + off, towrite)) < 0)
             return ret;
         off += towrite;
+        //如果还有剩余的数据没有写入，表示当前数据包被分成了多个 chunk，需要在每个 chunk 的开头添加一个标记字节。
+        // 标记字节的格式为 0xC0 | pkt->channel_id，其中 pkt->channel_id 是数据包所在的通道 ID。使用 ffurl_write 函数将标记字节写入到网络连接中。
         if (off < pkt->size) {
             uint8_t marker = 0xC0 | pkt->channel_id;
             if ((ret = ffurl_write(h, &marker, 1)) < 0)
                 return ret;
             written++;
+            //如果数据包的时间戳字段为 0xFFFFFF，表示时间戳需要使用扩展格式进行编码。此时需要在每个 chunk 的开头再添加一个 4 字节的时间戳信息
             if (pkt->ts_field == 0xFFFFFF) {
                 uint8_t ts_header[4];
                 AV_WB32(ts_header, timestamp);

@@ -536,6 +536,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 int avformat_open_input(AVFormatContext **ps, const char *filename,
                         ff_const59 AVInputFormat *fmt, AVDictionary **options)
 {
+
     AVFormatContext *s = *ps;
     int i, ret = 0;
     AVDictionary *tmp = NULL;
@@ -558,7 +559,7 @@ int avformat_open_input(AVFormatContext **ps, const char *filename,
 
     if ((ret = av_opt_set_dict(s, &tmp)) < 0)
         goto fail;
-
+    //初始化url成员
     if (!(s->url = av_strdup(filename ? filename : ""))) {
         ret = AVERROR(ENOMEM);
         goto fail;
@@ -569,6 +570,7 @@ FF_DISABLE_DEPRECATION_WARNINGS
     av_strlcpy(s->filename, filename ? filename : "", sizeof(s->filename));
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
+    //解析输入文件
     if ((ret = init_input(s, filename, &tmp)) < 0)
         goto fail;
     s->probe_score = ret;

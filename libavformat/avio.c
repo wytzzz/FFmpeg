@@ -97,6 +97,7 @@ static int url_alloc_for_protocol(URLContext **puc, const URLProtocol *up,
         err = AVERROR(ENOMEM);
         goto fail;
     }
+    //初始化URLContext
     uc->av_class = &ffurl_context_class;
     uc->filename = (char *)&uc[1];
     strcpy(uc->filename, filename);
@@ -267,10 +268,11 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
     av_strlcpy(proto_nested, proto_str, sizeof(proto_nested));
     if ((ptr = strchr(proto_nested, '+')))
         *ptr = '\0';
-
+    //查找protocal
     protocols = ffurl_get_protocols(NULL, NULL);
     if (!protocols)
         return NULL;
+    //遍历protocal
     for (i = 0; protocols[i]; i++) {
             const URLProtocol *up = protocols[i];
         if (!strcmp(proto_str, up->name)) {
@@ -280,6 +282,7 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
         if (up->flags & URL_PROTOCOL_FLAG_NESTED_SCHEME &&
             !strcmp(proto_nested, up->name)) {
             av_freep(&protocols);
+            //返回
             return up;
         }
     }
@@ -295,9 +298,10 @@ int ffurl_alloc(URLContext **puc, const char *filename, int flags,
                 const AVIOInterruptCB *int_cb)
 {
     const URLProtocol *p = NULL;
-
+    //查找protocol
     p = url_find_protocol(filename);
     if (p)
+        //分配URLProtocol
        return url_alloc_for_protocol(puc, p, filename, flags, int_cb);
 
     *puc = NULL;
@@ -311,6 +315,7 @@ int ffurl_open_whitelist(URLContext **puc, const char *filename, int flags,
 {
     AVDictionary *tmp_opts = NULL;
     AVDictionaryEntry *e;
+    //打开url
     int ret = ffurl_alloc(puc, filename, flags, int_cb);
     if (ret < 0)
         return ret;
@@ -361,6 +366,7 @@ int ffurl_open(URLContext **puc, const char *filename, int flags,
                                 int_cb, options, NULL, NULL, NULL);
 }
 
+//retry_transfer_wrapper 是一个函数封装，用于在传输数据时进行重试。它的作用是在底层传输失败后，多次尝试重新传输数据，直到传输成功或者达到最大重试次数为止。
 static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf,
                                          int size, int size_min,
                                          int (*transfer_func)(URLContext *h,
@@ -375,11 +381,15 @@ static inline int retry_transfer_wrapper(URLContext *h, uint8_t *buf,
     while (len < size_min) {
         if (ff_check_interrupt(&h->interrupt_callback))
             return AVERROR_EXIT;
+        //传输数据
         ret = transfer_func(h, buf + len, size - len);
+        //重试
         if (ret == AVERROR(EINTR))
             continue;
+        //直接返回
         if (h->flags & AVIO_FLAG_NONBLOCK)
             return ret;
+        //错误,重传.
         if (ret == AVERROR(EAGAIN)) {
             ret = 0;
             if (fast_retries) {
@@ -420,6 +430,7 @@ int ffurl_read_complete(URLContext *h, unsigned char *buf, int size)
     return retry_transfer_wrapper(h, buf, size, size, h->prot->url_read);
 }
 
+//写入数据
 int ffurl_write(URLContext *h, const unsigned char *buf, int size)
 {
     if (!(h->flags & AVIO_FLAG_WRITE))
@@ -548,6 +559,7 @@ int avio_open_dir(AVIODirContext **s, const char *url, AVDictionary **options)
         ret = AVERROR(ENOMEM);
         goto fail;
     }
+
 
     if ((ret = ffurl_alloc(&h, url, AVIO_FLAG_READ, NULL)) < 0)
         goto fail;

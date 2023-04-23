@@ -510,6 +510,7 @@ static int read_packet_wrapper(AVIOContext *s, uint8_t *buf, int size)
 
     if (!s->read_packet)
         return AVERROR(EINVAL);
+    //调用read_packet接口
     ret = s->read_packet(s->opaque, buf, size);
 #if FF_API_OLD_AVIO_EOF_0
     if (!ret && !s->max_packet_size) {
@@ -524,6 +525,7 @@ static int read_packet_wrapper(AVIOContext *s, uint8_t *buf, int size)
 
 /* Input stream */
 
+//从源读取数据
 static void fill_buffer(AVIOContext *s)
 {
     int max_buffer_size = s->max_packet_size ?
@@ -559,6 +561,7 @@ static void fill_buffer(AVIOContext *s)
         len = s->orig_buffer_size;
     }
 
+    //读取数据
     len = read_packet_wrapper(s, dst, len);
     if (len == AVERROR_EOF) {
         /* do not modify buffer if EOF reached so that a seek back can
@@ -622,6 +625,7 @@ int avio_r8(AVIOContext *s)
     return 0;
 }
 
+
 int avio_read(AVIOContext *s, unsigned char *buf, int size)
 {
     int len, size1;
@@ -629,10 +633,13 @@ int avio_read(AVIOContext *s, unsigned char *buf, int size)
     size1 = size;
     while (size > 0) {
         len = FFMIN(s->buf_end - s->buf_ptr, size);
+        //如果buffer中没有数据
         if (len == 0 || s->write_flag) {
+            //减少拷贝,直接拷贝到输出缓冲区.
             if((s->direct || size > s->buffer_size) && !s->update_checksum) {
                 // bypass the buffer and read data directly into buf
                 len = read_packet_wrapper(s, buf, size);
+                //eof
                 if (len == AVERROR_EOF) {
                     /* do not modify buffer if EOF reached so that a seek back can
                     be done without rereading data */
@@ -926,17 +933,19 @@ int ffio_fdopen(AVIOContext **s, URLContext *h)
     } else {
         buffer_size = IO_BUFFER_SIZE;
     }
+    //分配buffer
     buffer = av_malloc(buffer_size);
     if (!buffer)
         return AVERROR(ENOMEM);
 
+    //初始化AVIOContext
     *s = avio_alloc_context(buffer, buffer_size, h->flags & AVIO_FLAG_WRITE, h,
                             (int (*)(void *, uint8_t *, int))  ffurl_read,
                             (int (*)(void *, uint8_t *, int))  ffurl_write,
                             (int64_t (*)(void *, int64_t, int))ffurl_seek);
     if (!*s)
         goto fail;
-
+    //初始化AVIOContext
     (*s)->protocol_whitelist = av_strdup(h->protocol_whitelist);
     if (!(*s)->protocol_whitelist && h->protocol_whitelist) {
         avio_closep(s);
@@ -1112,10 +1121,12 @@ int ffio_rewind_with_probe_data(AVIOContext *s, unsigned char **bufp, int buf_si
     return 0;
 }
 
+//打开文件,并初始化AVIOContext和URLContext结构
 int avio_open(AVIOContext **s, const char *filename, int flags)
 {
     return avio_open2(s, filename, flags, NULL, NULL);
 }
+
 
 int ffio_open_whitelist(AVIOContext **s, const char *filename, int flags,
                          const AVIOInterruptCB *int_cb, AVDictionary **options,
@@ -1126,10 +1137,11 @@ int ffio_open_whitelist(AVIOContext **s, const char *filename, int flags,
     int err;
 
     *s = NULL;
-
+    //初始化URLContext
     err = ffurl_open_whitelist(&h, filename, flags, int_cb, options, whitelist, blacklist, NULL);
     if (err < 0)
         return err;
+    //初始化AVIOContext
     err = ffio_fdopen(s, h);
     if (err < 0) {
         ffurl_close(h);

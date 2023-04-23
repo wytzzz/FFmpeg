@@ -55,15 +55,15 @@
 
 /** RTMP protocol handler state */
 typedef enum {
-    STATE_START,      ///< client has not done anything yet
-    STATE_HANDSHAKED, ///< client has performed handshake
-    STATE_FCPUBLISH,  ///< client FCPublishing stream (for output)
-    STATE_PLAYING,    ///< client has started receiving multimedia data from server
-    STATE_SEEKING,    ///< client has started the seek operation. Back on STATE_PLAYING when the time comes
-    STATE_PUBLISHING, ///< client has started sending multimedia data to server (for output)
-    STATE_RECEIVING,  ///< received a publish command (for input)
-    STATE_SENDING,    ///< received a play command (for output)
-    STATE_STOPPED,    ///< the broadcast has been stopped
+    STATE_START,      ///表示客户端的初始状态，表示客户端尚未执行任何操作。< client has not done anything yet
+    STATE_HANDSHAKED, ///表示客户端已成功执行握手操作，即建立了客户端与服务器之间的通信。< client has performed handshake
+    STATE_FCPUBLISH,  ///表示客户端正在向服务器发布流用于输出。< client FCPublishing stream (for output)
+    STATE_PLAYING,    ///表示客户端已开始从服务器接收多媒体数据。< client has started receiving multimedia data from server
+    STATE_SEEKING,    ///表示客户端已启动搜索操作，以在多媒体流中移动到特定位置。当搜索操作完成时，状态将返回到STATE_PLAYING。< client has started the seek operation. Back on STATE_PLAYING when the time comes
+    STATE_PUBLISHING, ///表示客户端正在向服务器发送多媒体数据以进行输出。< client has started sending multimedia data to server (for output)
+    STATE_RECEIVING,  ///客户端已经收到一个发布命令（作为输入）。< received a publish command (for input)
+    STATE_SENDING,    ///客户端已经收到一个播放命令（作为输出）。< received a play command (for output)
+    STATE_STOPPED,    ///广播已经停止。< the broadcast has been stopped
 } ClientState;
 
 typedef struct TrackedMethod {
@@ -74,59 +74,62 @@ typedef struct TrackedMethod {
 /** protocol handler context */
 typedef struct RTMPContext {
     const AVClass *class;
-    URLContext*   stream;                     ///< TCP stream used in interactions with RTMP server
-    RTMPPacket    *prev_pkt[2];               ///< packet history used when reading and sending packets ([0] for reading, [1] for writing)
-    int           nb_prev_pkt[2];             ///< number of elements in prev_pkt
-    int           in_chunk_size;              ///< size of the chunks incoming RTMP packets are divided into
-    int           out_chunk_size;             ///< size of the chunks outgoing RTMP packets are divided into
-    int           is_input;                   ///< input/output flag
-    char          *playpath;                  ///< stream identifier to play (with possible "mp4:" prefix)
-    int           live;                       ///< 0: recorded, -1: live, -2: both
-    char          *app;                       ///< name of application
-    char          *conn;                      ///< append arbitrary AMF data to the Connect message
-    ClientState   state;                      ///< current state
-    int           stream_id;                  ///< ID assigned by the server for the stream
-    uint8_t*      flv_data;                   ///< buffer with data for demuxer
-    int           flv_size;                   ///< current buffer size
-    int           flv_off;                    ///< number of bytes read from current buffer
-    int           flv_nb_packets;             ///< number of flv packets published
-    RTMPPacket    out_pkt;                    ///< rtmp packet, created from flv a/v or metadata (for output)
-    uint32_t      receive_report_size;        ///< number of bytes after which we should report the number of received bytes to the peer
-    uint64_t      bytes_read;                 ///< number of bytes read from server
-    uint64_t      last_bytes_read;            ///< number of bytes read last reported to server
-    uint32_t      last_timestamp;             ///< last timestamp received in a packet
-    int           skip_bytes;                 ///< number of bytes to skip from the input FLV stream in the next write call
-    int           has_audio;                  ///< presence of audio data
-    int           has_video;                  ///< presence of video data
-    int           received_metadata;          ///< Indicates if we have received metadata about the streams
-    uint8_t       flv_header[RTMP_HEADER];    ///< partial incoming flv packet header
-    int           flv_header_bytes;           ///< number of initialized bytes in flv_header
-    int           nb_invokes;                 ///< keeps track of invoke messages
-    char*         tcurl;                      ///< url of the target stream
-    char*         flashver;                   ///< version of the flash plugin
-    char*         swfhash;                    ///< SHA256 hash of the decompressed SWF file (32 bytes)
-    int           swfhash_len;                ///< length of the SHA256 hash
-    int           swfsize;                    ///< size of the decompressed SWF file
-    char*         swfurl;                     ///< url of the swf player
-    char*         swfverify;                  ///< URL to player swf file, compute hash/size automatically
-    char          swfverification[42];        ///< hash of the SWF verification
-    char*         pageurl;                    ///< url of the web page
-    char*         subscribe;                  ///< name of live stream to subscribe
-    int           max_sent_unacked;           ///< max unacked sent bytes
-    int           client_buffer_time;         ///< client buffer time in ms
+
+    URLContext*   stream;                     ///指向TCP流的指针，用于与RTMP服务器交互。 < TCP stream used in interactions with RTMP server
+    RTMPPacket    *prev_pkt[2];               ///用于存储读取和发送RTMP数据包的历史记录 < packet history used when reading and sending packets ([0] for reading, [1] for writing)
+    int           nb_prev_pkt[2];             ///存储历史记录中每个RTMP数据包的数量。< number of elements in prev_pkt
+    int           in_chunk_size;              ///输入RTMP数据包所分割成的块的大小。< size of the chunks incoming RTMP packets are divided into
+    int           out_chunk_size;             ///输出RTMP数据包所分割成的块的大小。< size of the chunks outgoing RTMP packets are divided into
+    //在RTMP协议中，输入连接通常指客户端向服务器发送数据的连接，
+    // 例如客户端向服务器发送视频或音频流的连接。而输出连接则是指服务器向客户端发送数据的连接，例如服务器向客户端发送视频或音频流的连接
+    int           is_input;                   ///输入/输出标志，指示该结构体是用于输入还是输出RTMP数据包< input/output flag
+    char          *playpath;                  ///流标识符，用于播放（可能带有“mp4:”前缀）。< stream identifier to play (with possible "mp4:" prefix)
+    int           live;                       ///指示流是否为实时流或录制流< 0: recorded, -1: live, -2: both
+    char          *app;                       ///应用程序名称。< name of application
+    char          *conn;                      ///将任意的AMF数据追加到连接消息中。< append arbitrary AMF data to the Connect message
+    ClientState   state;                      ///当前状态< current state
+    int           stream_id;                  ///服务器为流分配的ID。< ID assigned by the server for the stream
+    uint8_t*      flv_data;                   ///包含解复用器数据的缓冲区< buffer with data for demuxer
+    int           flv_size;                   ///当前缓冲区的大小< current buffer size
+    int           flv_off;                    ///从当前缓冲区读取的字节数< number of bytes read from current buffer
+    int           flv_nb_packets;             ///发布的FLV包数量< number of flv packets published
+    RTMPPacket    out_pkt;                    ///从FLV音视频或元数据创建的RTMP数据包（用于输出）。< rtmp packet, created from flv a/v or metadata (for output)
+    uint32_t      receive_report_size;        ///当接收到的字节数达到此数值时，应向对等方报告接收到的字节数。< number of bytes after which we should report the number of received bytes to the peer
+    uint64_t      bytes_read;                 ///从服务器读取的字节数。< number of bytes read from server
+    uint64_t      last_bytes_read;            ///上次报告给服务器的读取字节数。< number of bytes read last reported to server
+    uint32_t      last_timestamp;             ///上次收到的数据包中的时间戳。< last timestamp received in a packet
+    int           skip_bytes;                 ///下一个写入调用中要从FLV流中跳过的字节数。< number of bytes to skip from the input FLV stream in the next write call
+    int           has_audio;                  ///是否存在音频数据。< presence of audio data
+    int           has_video;                  ///是否存在视频数据。< presence of video data
+    int           received_metadata;          ///指示是否已接收有关流的元数据< Indicates if we have received metadata about the streams
+    uint8_t       flv_header[RTMP_HEADER];    ///部分输入的FLV数据包头。< partial incoming flv packet header
+    int           flv_header_bytes;           ///flv_header中初始化的字节数< number of initialized bytes in flv_header
+    int           nb_invokes;                 ///跟踪调用消息的数量。< keeps track of invoke messages
+    char*         tcurl;                      ///目标流的URL< url of the target stream
+    char*         flashver;                   ///Flash插件版本。< version of the flash plugin
+    char*         swfhash;                    ///解压后的SWF文件的SHA256哈希值（32字节）。< SHA256 hash of the decompressed SWF file (32 bytes)
+    int           swfhash_len;                ///SHA256哈希值的长度< length of the SHA256 hash
+    int           swfsize;                    ///解压后的SWF文件的大小< size of the decompressed SWF file
+    char*         swfurl;                     ///SWF播放器的URL< url of the swf player
+    char*         swfverify;                  ///播放器SWF文件的URL，可以自动计算哈希值/大小。< URL to player swf file, compute hash/size automatically
+    char          swfverification[42];        ///SWF验证的哈希值< hash of the SWF verification
+    char*         pageurl;                    ///订阅直播流的网页 URL< url of the web page
+    char*         subscribe;                  ///要订阅的直播流名称< name of live stream to subscribe
+    int           max_sent_unacked;           ///最大未确认发送字节数< max unacked sent bytes
+    int           client_buffer_time;         ///客户端缓冲时间（以毫秒为单位）。< client buffer time in ms
     int           flush_interval;             ///< number of packets flushed in the same request (RTMPT only)
-    int           encrypted;                  ///< use an encrypted connection (RTMPE only)
+    int           encrypted;                  ///是否使用加密连接（仅在 RTMPE 中使用）。< use an encrypted connection (RTMPE only)
     TrackedMethod*tracked_methods;            ///< tracked methods buffer
     int           nb_tracked_methods;         ///< number of tracked methods
     int           tracked_methods_size;       ///< size of the tracked methods buffer
     int           listen;                     ///< listen mode flag
     int           listen_timeout;             ///< listen timeout to wait for new connections
     int           nb_streamid;                ///< The next stream id to return on createStream calls
-    double        duration;                   ///< Duration of the stream in seconds as returned by the server (only valid if non-zero)
+    double        duration;                   ///由服务器返回的流的持续时间，以秒为单位（仅在非零时有效）。< Duration of the stream in seconds as returned by the server (only valid if non-zero)
     char          username[50];
     char          password[50];
     char          auth_params[500];
-    int           do_reconnect;
+    int           do_reconnect;  //需要重连
     int           auth_tried;
 } RTMPContext;
 
@@ -187,6 +190,7 @@ static void del_tracked_method(RTMPContext *rt, int index)
     rt->nb_tracked_methods--;
 }
 
+//该函数通常在RTMP协议中的命令消息中使用，用于匹配响应消息的事务ID和请求消息中的事务ID，以确保响应消息与请求消息匹配。
 static int find_tracked_method(URLContext *s, RTMPPacket *pkt, int offset,
                                char **tracked_method)
 {
@@ -197,13 +201,15 @@ static int find_tracked_method(URLContext *s, RTMPPacket *pkt, int offset,
     int i;
 
     bytestream2_init(&gbc, pkt->data + offset, pkt->size - offset);
+    //读取事物id
     if ((ret = ff_amf_read_number(&gbc, &pkt_id)) < 0)
         return ret;
 
+    //是否有匹配的id?
     for (i = 0; i < rt->nb_tracked_methods; i++) {
         if (rt->tracked_methods[i].id != pkt_id)
             continue;
-
+        //返回方法名称
         *tracked_method = rt->tracked_methods[i].name;
         del_tracked_method(rt, i);
         break;
@@ -227,6 +233,8 @@ static int rtmp_send_packet(RTMPContext *rt, RTMPPacket *pkt, int track)
 {
     int ret;
 
+    //在发送数据包之前，代码会先判断数据包的类型是否为RTMP_PT_INVOKE，并且是否需要进行跟踪（即track参数是否为真）。
+    // 如果需要进行跟踪，则代码会从RTMPPacket中解析出方法名和方法ID，并将其添加到RTMPContext的tracked_methods数组中。
     if (pkt->type == RTMP_PT_INVOKE && track) {
         GetByteContext gbc;
         char name[128];
@@ -244,6 +252,7 @@ static int rtmp_send_packet(RTMPContext *rt, RTMPPacket *pkt, int track)
             goto fail;
     }
 
+    //将RTMPPacket中的数据按照RTMP协议格式封装成一个或多个RTMP Chunk，并通过RTMP协议发送到服务器。
     ret = ff_rtmp_packet_write(rt->stream, pkt, rt->out_chunk_size,
                                &rt->prev_pkt[1], &rt->nb_prev_pkt[1]);
 fail:
@@ -326,6 +335,7 @@ static int gen_connect(URLContext *s, RTMPContext *rt)
 
     p = pkt.data;
 
+    //connect
     ff_amf_write_string(&p, "connect");
     ff_amf_write_number(&p, ++rt->nb_invokes);
     ff_amf_write_object_start(&p);
@@ -349,6 +359,17 @@ static int gen_connect(URLContext *s, RTMPContext *rt)
 
     ff_amf_write_field_name(&p, "tcUrl");
     ff_amf_write_string2(&p, rt->tcurl, rt->auth_params);
+
+    //首先，如果RTMPContext中的is_input为真，则表示当前连接是输入连接，即客户端向服务器发送数据的连接。
+    //接下来，代码会向输出缓冲区写入一些字段和值，这些字段和值表示客户端支持的一些功能和编解码器。
+    //具体来说，代码会向输出缓冲区写入以下字段和值：
+    //"fpad"字段：表示客户端是否支持填充。
+    //"capabilities"字段：表示客户端支持的功能。这个值设置为15.0表示客户端支持所有功能。
+    //"audioCodecs"字段：表示客户端支持的音频编解码器。这个值设置为4071.0表示客户端支持除了SUPPORT_SND_INTEL（0x0008）和SUPPORT_SND_UNUSED（0x0010）之外的所有音频编解码器。
+    //"videoCodecs"字段：表示客户端支持的视频编解码器。这个值设置为252.0表示客户端支持所有视频编解码器。
+    //"videoFunction"字段：表示客户端支持的视频功能。这个值设置为1.0表示客户端支持视频播放功能。
+    //"pageUrl"字段：表示客户端当前所在的页面URL。如果RTMPContext中的pageurl不为空，则会将其写入输出缓冲区中。
+    //总之，这段代码的作用是向RTMP服务器传递一些客户端支持的功能和编解码器信息，以便服务器在后续数据交换过程中正确地处理数据。
     if (rt->is_input) {
         ff_amf_write_field_name(&p, "fpad");
         ff_amf_write_bool(&p, 0);
@@ -399,6 +420,7 @@ static int gen_connect(URLContext *s, RTMPContext *rt)
 
     pkt.size = p - pkt.data;
 
+    //发送packet
     return rtmp_send_packet(rt, &pkt, 1);
 }
 
@@ -462,6 +484,7 @@ static int read_connect(URLContext *s, RTMPContext *rt)
         ff_rtmp_packet_destroy(&pkt);
         return AVERROR_INVALIDDATA;
     }
+    //connect
     if (strcmp(command, "connect")) {
         av_log(s, AV_LOG_ERROR, "Expecting connect, got %s\n", command);
         ff_rtmp_packet_destroy(&pkt);
@@ -544,6 +567,7 @@ static int read_connect(URLContext *s, RTMPContext *rt)
                                      RTMP_PKTDATA_DEFAULT_SIZE)) < 0)
         return ret;
 
+    //connect response
     p = pkt.data;
     ff_amf_write_string(&p, "_result");
     ff_amf_write_number(&p, seqnum);
@@ -999,11 +1023,16 @@ static int rtmp_handshake_imprint_with_digest(uint8_t *buf, int encrypted)
 {
     int ret, digest_pos;
 
+    //计算digest的pos
+    //第一个参数表示需要计算的缓冲区，第二个参数表示缓冲区的总长度，
+    // 第三个参数表示摘要数据的位置偏移量，第四个参数表示摘要数据的长度。
+    // 根据这些参数，函数会计算出摘要数据需要插入的位置，并将其返回
     if (encrypted)
         digest_pos = ff_rtmp_calc_digest_pos(buf, 772, 728, 776);
     else
         digest_pos = ff_rtmp_calc_digest_pos(buf, 8, 728, 12);
 
+    //该函数的作用是对输入的数据进行SHA256哈希计算，并将计算结果存储在指定位置，以便后续的数据包可以使用这个摘要数据进行验证
     ret = ff_rtmp_calc_digest(buf, RTMP_HANDSHAKE_PACKET_SIZE, digest_pos,
                               rtmp_player_key, PLAYER_KEY_OPEN_PART_LEN,
                               buf + digest_pos);
@@ -1196,6 +1225,9 @@ fail:
 static int rtmp_handshake(URLContext *s, RTMPContext *rt)
 {
     AVLFG rnd;
+    //对的，FFmpeg 在实现 RTMP 协议时，将客户端的 C0 和 C1 消息打包在同一个数据包中发送给服务器。
+    // 具体来说，FFmpeg 会先将 C0 的版本号和 C1 的时间戳打包成一个 5 字节的二进制数据，
+    // 然后再将 C1 的随机数据拼接在后面，组成一个 157 字节的二进制数据包，最后将这个数据包发送给服务器。
     uint8_t tosend    [RTMP_HANDSHAKE_PACKET_SIZE+1] = {
         3,                // unencrypted data
         0, 0, 0, 0,       // client uptime
@@ -1213,6 +1245,8 @@ static int rtmp_handshake(URLContext *s, RTMPContext *rt)
 
     av_log(s, AV_LOG_DEBUG, "Handshaking...\n");
 
+
+    //生成随机数字
     av_lfg_init(&rnd, 0xDEADC0DE);
     // generate handshake packet - 1536 bytes of pseudorandom data
     for (i = 9; i <= RTMP_HANDSHAKE_PACKET_SIZE; i++)
@@ -1230,37 +1264,45 @@ static int rtmp_handshake(URLContext *s, RTMPContext *rt)
 
         /* Initialize the Diffie-Hellmann context and generate the public key
          * to send to the server. */
+
+       // 调用rtmp_handshake_imprint_with_digest函数对握手请求进行修改，以便计算出用于验证握手响应的摘要。
         if ((ret = ff_rtmpe_gen_pub_key(rt->stream, tosend + 1)) < 0)
             return ret;
     }
 
+    //将摘要信息也放入handshake数据包中
     client_pos = rtmp_handshake_imprint_with_digest(tosend + 1, rt->encrypted);
     if (client_pos < 0)
         return client_pos;
 
+    //调用ffurl_write函数将握手请求发送给服务端。
     if ((ret = ffurl_write(rt->stream, tosend,
                            RTMP_HANDSHAKE_PACKET_SIZE + 1)) < 0) {
         av_log(s, AV_LOG_ERROR, "Cannot write RTMP handshake request\n");
         return ret;
     }
 
+    //调用ffurl_read_complete函数从流中读取服务端的s0/s1，并将其存储在serverdata数组中。
     if ((ret = ffurl_read_complete(rt->stream, serverdata,
                                    RTMP_HANDSHAKE_PACKET_SIZE + 1)) < 0) {
         av_log(s, AV_LOG_ERROR, "Cannot read RTMP handshake response\n");
         return ret;
     }
 
+    //再次调用ffurl_read_complete函数从流中读取服务端发送的s2，并将其存储在clientdata数组中。
     if ((ret = ffurl_read_complete(rt->stream, clientdata,
                                    RTMP_HANDSHAKE_PACKET_SIZE)) < 0) {
         av_log(s, AV_LOG_ERROR, "Cannot read RTMP handshake response\n");
         return ret;
     }
 
+    //打印出服务端响应的类型和版本号信息。
     av_log(s, AV_LOG_DEBUG, "Type answer %d\n", serverdata[0]);
     av_log(s, AV_LOG_DEBUG, "Server version %d.%d.%d.%d\n",
            serverdata[5], serverdata[6], serverdata[7], serverdata[8]);
 
     if (rt->is_input && serverdata[5] >= 3) {
+        //判断握手数据是否有效，如果无效则返回错误。
         server_pos = rtmp_validate_digest(serverdata + 1, 772);
         if (server_pos < 0)
             return server_pos;
@@ -1507,7 +1549,7 @@ static int handle_chunk_size(URLContext *s, RTMPPacket *pkt)
             return ret;
         rt->out_chunk_size = AV_RB32(pkt->data);
     }
-
+    //设置chunk_size
     rt->in_chunk_size = AV_RB32(pkt->data);
     if (rt->in_chunk_size <= 0) {
         av_log(s, AV_LOG_ERROR, "Incorrect chunk size %d\n",
@@ -1531,6 +1573,7 @@ static int handle_user_control(URLContext *s, RTMPPacket *pkt)
         return AVERROR_INVALIDDATA;
     }
 
+    //解析自类型
     t = AV_RB16(pkt->data);
     if (t == 6) { // PingRequest
         if ((ret = gen_pong(s, rt, pkt)) < 0)
@@ -1949,9 +1992,11 @@ static int send_invoke_response(URLContext *s, RTMPPacket *pkt)
                 av_log(s, AV_LOG_WARNING, "Unexpected stream %s, expecting"
                        " %s\n", filename, pchar);
         }
+        //切换状态,表示成功收到publish.
         rt->state = STATE_RECEIVING;
     }
 
+    //推流命令
     if (!strcmp(command, "FCPublish")) {
         if ((ret = ff_rtmp_packet_create(&spkt, RTMP_SYSTEM_CHANNEL,
                                          RTMP_PT_INVOKE, 0,
@@ -1969,6 +2014,7 @@ static int send_invoke_response(URLContext *s, RTMPPacket *pkt)
         // Send onStatus(NetStream.Publish.Start)
         return write_status(s, pkt, "NetStream.Publish.Start",
                            filename);
+    //拉流命令
     } else if (!strcmp(command, "play")) {
         ret = write_begin(s);
         if (ret < 0)
@@ -1976,6 +2022,7 @@ static int send_invoke_response(URLContext *s, RTMPPacket *pkt)
         rt->state = STATE_SENDING;
         return write_status(s, pkt, "NetStream.Play.Start",
                             filename);
+    //其他命令
     } else {
         if ((ret = ff_rtmp_packet_create(&spkt, RTMP_SYSTEM_CHANNEL,
                                          RTMP_PT_INVOKE, 0,
@@ -1987,6 +2034,8 @@ static int send_invoke_response(URLContext *s, RTMPPacket *pkt)
         ff_amf_write_string(&pp, "_result");
         ff_amf_write_number(&pp, seqnum);
         ff_amf_write_null(&pp);
+        //createStream
+        //对于"createStream"命令，函数会将RTMPContext中的nb_streamid增加1，并将其写入响应消息中。这个值用于标识流媒体中的流ID，并在需要时创建新的流。
         if (!strcmp(command, "createStream")) {
             rt->nb_streamid++;
             if (rt->nb_streamid == 0 || rt->nb_streamid == 2)
@@ -1998,6 +2047,7 @@ static int send_invoke_response(URLContext *s, RTMPPacket *pkt)
         }
     }
     spkt.size = pp - spkt.data;
+    //发送响应
     ret = ff_rtmp_packet_write(rt->stream, &spkt, rt->out_chunk_size,
                                &rt->prev_pkt[1], &rt->nb_prev_pkt[1]);
     ff_rtmp_packet_destroy(&spkt);
@@ -2057,6 +2107,7 @@ static int handle_invoke_result(URLContext *s, RTMPPacket *pkt)
         return ret;
     }
 
+    //connect
     if (!strcmp(tracked_method, "connect")) {
         if (!rt->is_input) {
             if ((ret = gen_release_stream(s, rt)) < 0)
@@ -2083,6 +2134,7 @@ static int handle_invoke_result(URLContext *s, RTMPPacket *pkt)
                     goto fail;
             }
         }
+    //createStream
     } else if (!strcmp(tracked_method, "createStream")) {
         double stream_id;
         if (read_number_result(pkt, &stream_id)) {
@@ -2104,6 +2156,7 @@ static int handle_invoke_result(URLContext *s, RTMPPacket *pkt)
             if ((ret = gen_buffer_time(s, rt)) < 0)
                 goto fail;
         }
+    //
     } else if (!strcmp(tracked_method, "getStreamLength")) {
         if (read_number_result(pkt, &rt->duration)) {
             av_log(s, AV_LOG_WARNING, "Unexpected reply on getStreamLength()\n");
@@ -2158,6 +2211,8 @@ static int handle_invoke(URLContext *s, RTMPPacket *pkt)
     int ret = 0;
 
     //TODO: check for the messages sent for wrong state?
+    //这段代码是用于处理RTMP协议中的命令消息，根据命令类型的不同分别调用不同的处理函数。
+    //例如"_error"表示调用方法时发生错误，"_result"表示调用方法成功，"onStatus"表示状态通知等等。
     if (ff_amf_match_string(pkt->data, pkt->size, "_error")) {
         if ((ret = handle_invoke_error(s, pkt)) < 0)
             return ret;
@@ -2170,6 +2225,7 @@ static int handle_invoke(URLContext *s, RTMPPacket *pkt)
     } else if (ff_amf_match_string(pkt->data, pkt->size, "onBWDone")) {
         if ((ret = gen_check_bw(s, rt)) < 0)
             return ret;
+    //流操作,执行对应的响应
     } else if (ff_amf_match_string(pkt->data, pkt->size, "releaseStream") ||
                ff_amf_match_string(pkt->data, pkt->size, "FCPublish")     ||
                ff_amf_match_string(pkt->data, pkt->size, "publish")       ||
@@ -2215,14 +2271,16 @@ static int append_flv_data(RTMPContext *rt, RTMPPacket *pkt, int skip)
     } else if (pkt->type == RTMP_PT_VIDEO) {
         rt->has_video = 1;
     }
-
+    //在写入FLV文件之前，代码会先更新FLV文件的偏移量，并对FLV文件的大小进行扩展。
     old_flv_size = update_offset(rt, size + 15);
-
     if ((ret = av_reallocp(&rt->flv_data, rt->flv_size)) < 0) {
         rt->flv_size = rt->flv_off = 0;
         return ret;
     }
+    //代码会先写入一个FLV Tag Header，包括类型、数据大小、时间戳等信息，然后写入RTMP数据包中的数据内容
+
     bytestream2_init_writer(&pbc, rt->flv_data, rt->flv_size);
+    //找到offset
     bytestream2_skip_p(&pbc, old_flv_size);
     bytestream2_put_byte(&pbc, pkt->type);
     bytestream2_put_be24(&pbc, size);
@@ -2247,7 +2305,8 @@ static int handle_notify(URLContext *s, RTMPPacket *pkt)
     if (ff_amf_read_string(&gbc, commandbuffer, sizeof(commandbuffer),
                            &stringlen))
         return AVERROR_INVALIDDATA;
-
+    //onMetaData
+    //这段代码的作用是解析RTMP协议中的元数据（metadata）信息，并从中获取音视频流的编码格式等信息，以便在后续的数据交换过程中正确地处理音视频数据。
     if (!strcmp(commandbuffer, "onMetaData")) {
         // metadata properties should be stored in a mixed array
         if (bytestream2_get_byte(&gbc) == AMF_DATA_TYPE_MIXEDARRAY) {
@@ -2268,6 +2327,7 @@ static int handle_notify(URLContext *s, RTMPPacket *pkt)
 
                 // The presence of the following properties indicates that the
                 // respective streams are present.
+                //判断是否存在音视频流
                 if (!strcmp(statusmsg, "videocodecid")) {
                     rt->has_video = 1;
                 }
@@ -2306,6 +2366,7 @@ static int rtmp_parse_result(URLContext *s, RTMPContext *rt, RTMPPacket *pkt)
     ff_rtmp_packet_dump(s, pkt);
 #endif
 
+    //根据不同的数据包类型做处理
     switch (pkt->type) {
     case RTMP_PT_BYTES_READ:
         av_log(s, AV_LOG_TRACE, "received bytes read report\n");
@@ -2327,6 +2388,7 @@ static int rtmp_parse_result(URLContext *s, RTMPContext *rt, RTMPPacket *pkt)
             return ret;
         break;
     case RTMP_PT_INVOKE:
+        //amf操作
         if ((ret = handle_invoke(s, pkt)) < 0)
             return ret;
         break;
@@ -2343,6 +2405,7 @@ static int rtmp_parse_result(URLContext *s, RTMPContext *rt, RTMPPacket *pkt)
     return 0;
 }
 
+//这段代码的作用是处理从RTMP协议的元数据（metadata）包中获取的音视频数据，并将其写入FLV文件格式的数据中
 static int handle_metadata(RTMPContext *rt, RTMPPacket *pkt)
 {
     int ret, old_flv_size, type;
@@ -2375,6 +2438,7 @@ static int handle_metadata(RTMPContext *rt, RTMPPacket *pkt)
         pts = cts;
         if (size + 3 + 4 > pkt->data + pkt->size - next)
             break;
+        //写入元数据
         bytestream_put_byte(&p, type);
         bytestream_put_be24(&p, size);
         bytestream_put_be24(&p, ts);
@@ -2414,6 +2478,7 @@ static int get_packet(URLContext *s, int for_header)
 
     for (;;) {
         RTMPPacket rpkt = { 0 };
+        //读取一个message
         if ((ret = ff_rtmp_packet_read(rt->stream, &rpkt,
                                        rt->in_chunk_size, &rt->prev_pkt[0],
                                        &rt->nb_prev_pkt[0])) <= 0) {
@@ -2428,6 +2493,7 @@ static int get_packet(URLContext *s, int for_header)
         rt->last_timestamp = rpkt.timestamp;
 
         rt->bytes_read += ret;
+
         if (rt->bytes_read - rt->last_bytes_read > rt->receive_report_size) {
             av_log(s, AV_LOG_DEBUG, "Sending bytes read report\n");
             if ((ret = gen_bytes_read(s, rt, rpkt.timestamp + 1)) < 0) {
@@ -2436,7 +2502,7 @@ static int get_packet(URLContext *s, int for_header)
             }
             rt->last_bytes_read = rt->bytes_read;
         }
-
+        //处理接收到的命令消息和流控信息
         ret = rtmp_parse_result(s, rt, &rpkt);
 
         // At this point we must check if we are in the seek state and continue
@@ -2461,6 +2527,7 @@ static int get_packet(URLContext *s, int for_header)
             ff_rtmp_packet_destroy(&rpkt);
             return AVERROR_EOF;
         }
+
         if (for_header && (rt->state == STATE_PLAYING    ||
                            rt->state == STATE_PUBLISHING ||
                            rt->state == STATE_SENDING    ||
@@ -2472,15 +2539,20 @@ static int get_packet(URLContext *s, int for_header)
             ff_rtmp_packet_destroy(&rpkt);
             continue;
         }
+
+        //处理媒体数据
         if (rpkt.type == RTMP_PT_VIDEO || rpkt.type == RTMP_PT_AUDIO) {
+            //读取flb
             ret = append_flv_data(rt, &rpkt, 0);
             ff_rtmp_packet_destroy(&rpkt);
             return ret;
         } else if (rpkt.type == RTMP_PT_NOTIFY) {
+            //处理通知
             ret = handle_notify(s, &rpkt);
             ff_rtmp_packet_destroy(&rpkt);
             return ret;
         } else if (rpkt.type == RTMP_PT_METADATA) {
+            //处理元数据
             ret = handle_metadata(rt, &rpkt);
             ff_rtmp_packet_destroy(&rpkt);
             return ret;
@@ -2590,6 +2662,7 @@ static int inject_fake_duration_metadata(RTMPContext *rt)
  */
 static int rtmp_open(URLContext *s, const char *uri, int flags, AVDictionary **opts)
 {
+
     RTMPContext *rt = s->priv_data;
     char proto[8], hostname[256], path[1024], auth[100], *fname;
     char *old_app, *qmark, *n, fname_buffer[1024];
@@ -2601,7 +2674,7 @@ static int rtmp_open(URLContext *s, const char *uri, int flags, AVDictionary **o
         rt->listen = 1;
 
     rt->is_input = !(flags & AVIO_FLAG_WRITE);
-
+    //解析url
     av_url_split(proto, sizeof(proto), auth, sizeof(auth),
                  hostname, sizeof(hostname), &port,
                  path, sizeof(path), s->filename);
@@ -2629,6 +2702,7 @@ static int rtmp_open(URLContext *s, const char *uri, int flags, AVDictionary **o
                proto);
         return AVERROR(EINVAL);
     }
+    //代码根据 URI 中的协议类型（proto）来判断是否需要使用 HTTP 隧道传输（rtmpt 或 rtmpts）或者加密传输（rtmpe 或 rtmpte）。
     if (!strcmp(proto, "rtmpt") || !strcmp(proto, "rtmpts")) {
         if (!strcmp(proto, "rtmpts"))
             av_dict_set(opts, "ffrtmphttp_tls", "1", 1);
@@ -2647,10 +2721,13 @@ static int rtmp_open(URLContext *s, const char *uri, int flags, AVDictionary **o
         /* open the encrypted connection */
         ff_url_join(buf, sizeof(buf), "ffrtmpcrypt", NULL, hostname, port, NULL);
         rt->encrypted = 1;
+    //如果 URI 的协议类型既不是 rtmpt、rtmpts、rtmps，也不是 rtmpe、rtmpte，
+    // 则默认使用 TCP 协议连接 RTMP 服务器，并将 tcp 协议与主机名和端口号拼接成新的 URI。
     } else {
         /* open the tcp connection */
         if (port < 0)
             port = RTMP_DEFAULT_PORT;
+        //
         if (rt->listen)
             ff_url_join(buf, sizeof(buf), "tcp", NULL, hostname, port,
                         "?listen&listen_timeout=%d",
@@ -2660,6 +2737,7 @@ static int rtmp_open(URLContext *s, const char *uri, int flags, AVDictionary **o
     }
 
 reconnect:
+    //
     if ((ret = ffurl_open_whitelist(&rt->stream, buf, AVIO_FLAG_READ_WRITE,
                                     &s->interrupt_callback, opts,
                                     s->protocol_whitelist, s->protocol_blacklist, s)) < 0) {
@@ -2672,14 +2750,18 @@ reconnect:
             goto fail;
     }
 
+    //start状态
     rt->state = STATE_START;
+    //握手
     if (!rt->listen && (ret = rtmp_handshake(s, rt)) < 0)
         goto fail;
     if (rt->listen && (ret = rtmp_server_handshake(s, rt)) < 0)
         goto fail;
 
+    //初始化chunksize
     rt->out_chunk_size = 128;
     rt->in_chunk_size  = 128; // Probably overwritten later
+    //handshaked状态
     rt->state = STATE_HANDSHAKED;
 
     // Keep the application name when it has been defined by the user.
@@ -2692,7 +2774,11 @@ reconnect:
     }
 
     //extract "app" part from path
+    //rtmp://example.com/live/stream：表示 RTMP 协议的流媒体 URL，
+    // 其中 example.com 是服务器的域名或 IP 地址，live 是应用程序名称，stream 是播放路径（也可以是流名称）
+    //这段代码是 RTMP 协议中用于解析 URL 中的路径部分，并从中提取出应用程序名称（app）和播放路径（playpath）的过程。
     qmark = strchr(path, '?');
+    //首先判断 URL 中是否包含参数 slist，如果包含，则将完整路径作为应用程序名称（app），将 slist 后面的路径作为播放路径（playpath）
     if (qmark && strstr(qmark, "slist=")) {
         char* amp;
         // After slist we have the playpath, the full path is used as app
@@ -2705,9 +2791,11 @@ reconnect:
                                                   sizeof(fname_buffer)));
             fname = fname_buffer;
         }
+    //如果路径以 /ondemand/ 开头，则将 ondemand 作为应用程序名称（app），将 /ondemand/ 后面的路径作为播放路径（playpath）。
     } else if (!strncmp(path, "/ondemand/", 10)) {
         fname = path + 10;
         memcpy(rt->app, "ondemand", 9);
+    //如果路径中包含多个斜杠 /，则将第一个斜杠后面的路径作为应用程序名称（app），将第二个斜杠后面的路径作为播放路径（playpath）
     } else {
         char *next = *path ? path + 1 : path;
         char *p = strchr(next, '/');
@@ -2720,6 +2808,8 @@ reconnect:
                 fname = NULL;
                 av_strlcpy(rt->app, next, APP_MAX_LENGTH);
             }
+        //如果路径中只有一个斜杠 /，则根据是否已经定义应用程序名称来判断应用程序名称和播放路径。
+        // 如果已经定义了应用程序名称，则将路径中斜杠后面的路径作为播放路径；否则将整个路径作为应用程序名称。
         } else {
             // make sure we do not mismatch a playpath for an application instance
             char *c = strchr(p + 1, ':');
@@ -2733,7 +2823,7 @@ reconnect:
             }
         }
     }
-
+    //最后，如果已经定义了应用程序名称，则使用用户定义的应用程序名称覆盖之前提取的应用程序名称。
     if (old_app) {
         // The name of application has been defined by the user, override it.
         if (strlen(old_app) >= APP_MAX_LENGTH) {
@@ -2744,6 +2834,7 @@ reconnect:
         rt->app = old_app;
     }
 
+    //保存播放路径
     if (!rt->playpath) {
         int max_len = 1;
         if (fname)
@@ -2754,8 +2845,14 @@ reconnect:
             goto fail;
         }
 
+        //当文件名为 "example.mp4" 时，根据代码的逻辑，播放路径会被设置为 "mp4:example.mp4"。这是因为文件名以 ".mp4" 结尾，
+        // 符合 MP4 文件的命名规则，因此播放路径需要以 "mp4:" 开头，表示要播放一个 MP4 文件，后面跟着文件名。
+        //
+        //当文件名为 "example.flv" 时，根据代码的逻辑，播放路径会被设置为 "example"。
+        // 这是因为文件名以 ".flv" 结尾，符合 FLV 文件的命名规则，因此播放路径只需要使用文件名本身，不需要额外的前缀或后缀。
         if (fname) {
             int len = strlen(fname);
+            //mp4和f4v的播放路径
             if (!strchr(fname, ':') && len >= 4 &&
                 (!strcmp(fname + len - 4, ".f4v") ||
                  !strcmp(fname + len - 4, ".mp4"))) {
@@ -2770,7 +2867,7 @@ reconnect:
             rt->playpath[0] = '\0';
         }
     }
-
+    //目的是根据 RTMP 协议的参数设置 RTMP 连接的地址（tcurl）。
     if (!rt->tcurl) {
         rt->tcurl = av_malloc(TCURL_MAX_LENGTH);
         if (!rt->tcurl) {
@@ -2781,6 +2878,7 @@ reconnect:
                     port, "/%s", rt->app);
     }
 
+    //插件版本
     if (!rt->flashver) {
         rt->flashver = av_malloc(FLASHVER_MAX_LENGTH);
         if (!rt->flashver) {
@@ -2808,20 +2906,24 @@ reconnect:
 
     av_log(s, AV_LOG_DEBUG, "Proto = %s, path = %s, app = %s, fname = %s\n",
            proto, path, rt->app, rt->playpath);
+    //发起连接
     if (!rt->listen) {
         if ((ret = gen_connect(s, rt)) < 0)
             goto fail;
+    //接收连接
     } else {
         if ((ret = read_connect(s, s->priv_data)) < 0)
             goto fail;
     }
 
+    //读取第一个数据包
     do {
         ret = get_packet(s, 1);
     } while (ret == AVERROR(EAGAIN));
     if (ret < 0)
         goto fail;
 
+    //如果 rt->do_reconnect 标志被设置，表示需要重新连接 RTMP 服务器，则关闭当前连接，清除相关状态信息，然后跳转到重新连接 RTMP 服务器的代码块。
     if (rt->do_reconnect) {
         int i;
         ffurl_closep(&rt->stream);
@@ -2834,6 +2936,7 @@ reconnect:
         goto reconnect;
     }
 
+    //接收流的一端生成flv头信息
     if (rt->is_input) {
         // generate FLV header for demuxer
         rt->flv_size = 13;
@@ -2869,6 +2972,9 @@ reconnect:
             if ((ret = inject_fake_duration_metadata(rt)) < 0)
                 goto fail;
         }
+    //输出
+    //如果 rt->is_input 标志没有被设置，表示这是输出模块，需要将数据写入到 RTMP 服务器。在这种情况下，rt->flv_data 缓冲区为空，不需要生成 FLV 格式的数据。
+    // rt->skip_bytes 表示需要跳过的字节数，这是因为在写入 FLV 文件时需要跳过 FLV 头部的数据。
     } else {
         rt->flv_size = 0;
         rt->flv_data = NULL;
@@ -2889,6 +2995,7 @@ fail:
     return ret;
 }
 
+//读取数据
 static int rtmp_read(URLContext *s, uint8_t *buf, int size)
 {
     RTMPContext *rt = s->priv_data;
@@ -2903,6 +3010,7 @@ static int rtmp_read(URLContext *s, uint8_t *buf, int size)
             rt->flv_off += size;
             return orig_size;
         }
+        //buf没有数据了.
         if (data_left > 0) {
             memcpy(buf, rt->flv_data + rt->flv_off, data_left);
             buf  += data_left;
@@ -2910,6 +3018,7 @@ static int rtmp_read(URLContext *s, uint8_t *buf, int size)
             rt->flv_off = rt->flv_size;
             return data_left;
         }
+        //buf为空,则读取数据
         if ((ret = get_packet(s, 0)) < 0)
            return ret;
     }
@@ -2924,6 +3033,7 @@ static int64_t rtmp_seek(URLContext *s, int stream_index, int64_t timestamp,
     av_log(s, AV_LOG_DEBUG,
            "Seek on stream index %d at timestamp %"PRId64" with flags %08x\n",
            stream_index, timestamp, flags);
+    //seek
     if ((ret = gen_seek(s, rt, timestamp)) < 0) {
         av_log(s, AV_LOG_ERROR,
                "Unable to send seek command on stream index %d at timestamp "
@@ -3095,6 +3205,7 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
 #define DEC AV_OPT_FLAG_DECODING_PARAM
 #define ENC AV_OPT_FLAG_ENCODING_PARAM
 
+//rtmp选项
 static const AVOption rtmp_options[] = {
     {"rtmp_app", "Name of application to connect to on the RTMP server", OFFSET(app), AV_OPT_TYPE_STRING, {.str = NULL }, 0, 0, DEC|ENC},
     {"rtmp_buffer", "Set buffer time in milliseconds. The default is 3000.", OFFSET(client_buffer_time), AV_OPT_TYPE_INT, {.i64 = 3000}, 0, INT_MAX, DEC|ENC},
